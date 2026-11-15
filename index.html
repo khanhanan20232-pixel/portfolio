@@ -877,7 +877,7 @@
         // hero, and a distance-constrained chain trails it like silk.
         // Moving the pointer gently attracts the head (influence, not
         // control); on touch devices it runs fully on its own.
-        (function initRibbon() {
+        (function initDNA() {
           var canvas = document.getElementById('fxCanvas');
           var homePage = document.getElementById('page-home');
           if (!canvas || !homePage) return;
@@ -890,124 +890,84 @@
           var lastTs = 0;
           var tSec = 0;
 
-          // Pointer influence: gentle attraction only (the ribbon lives
-          // on its own; the pointer just leans it, like the original).
-          var ptr = { x: 0, y: 0 };
-          var ptrAt = -99999;
-          var ptrIn = 0;
-
-          // The head's autonomous path, measured from the recording
-          // frame by frame: the head races around a TILTED ELLIPSE
-          // (major axis tipped ~-14°, height ~0.58 of width), one
-          // circuit in ~3.3s. The ellipse's centre wanders slowly
-          // (heading area ↔ upper right) and its radius breathes
-          // deeply — swelling to a huge ring that wraps the whole
-          // heading, shrinking to a small tight curl parked at the
-          // top-right, then swelling again — exactly the sequence in
-          // the video (edge swirl → full ring → small loop → wisps).
-          function pathAt(t) {
-            var cx = W * (0.60 + 0.14 * Math.sin(t * 0.13 + 1.2));
-            var cy = H * (0.42 + 0.10 * Math.sin(t * 0.10 + 0.5));
-            var R = W * (0.20 + 0.13 * Math.sin(t * 0.45 + 0.8));
-            var th = t * 1.9; // one full circuit ≈ 3.3s
-            var ex = R * Math.cos(th);
-            var ey = R * 0.58 * Math.sin(th);
-            var tilt = -0.24; // ~-14°
-            var ct = Math.cos(tilt), st = Math.sin(tilt);
-            var x = cx + ex * ct - ey * st + W * 0.015 * Math.cos(th * 2.3 + 1.0);
-            var y = cy + ex * st + ey * ct + H * 0.015 * Math.sin(th * 1.7 + 0.6);
-            if (ptrIn > 0.001) {
-              x += (ptr.x - x) * 0.35 * ptrIn;
-              y += (ptr.y - y) * 0.35 * ptrIn;
-            }
-            return { x: x, y: y };
-          }
-
-          // The ribbon spine is the head's actual travelled path: a
-          // trail of past head positions, spaced ~8px apart. Loops in
-          // the path therefore appear in the ribbon exactly, and the
-          // ribbon can never collapse into a dot or a stray line.
-          var TRAIL_MAX = 175; // enough trail for one full fast circuit of the ring
-          var SPACING = 8;
-          var trail = [];
-
-          function pushHead(p) {
-            var n = trail.length;
-            if (!n) { trail.push({ x: p.x, y: p.y }); return; }
-            var last = trail[n - 1];
-            var dx = p.x - last.x, dy = p.y - last.y;
-            if (dx * dx + dy * dy >= SPACING * SPACING) {
-              trail.push({ x: p.x, y: p.y });
-              while (trail.length > TRAIL_MAX) trail.shift();
-            } else {
-              last.x = p.x; last.y = p.y;
-            }
-          }
-
-          // Pre-roll ~16 seconds of path so a fully formed swirl is on
-          // screen from the very first frame, like the recording.
-          function preroll() {
-            trail = [];
-            var t = -16;
-            while (t < 0) { pushHead(pathAt(t)); t += 1 / 30; }
-          }
-
-          function draw() {
+          // Rotating DNA double helix across the hero, like the first
+          // version Abdul approved: two glowing teal-green strands
+          // twisting around a horizontal axis, joined by faint rungs,
+          // points swelling and brightening as they swing to the
+          // front. It runs entirely on its own — no mouse needed.
+          function drawHelix() {
             ctx.clearRect(0, 0, W, H);
-            var n = trail.length;
-            if (n < 3) return;
-            // Gentle breathing only — the ribbon stays bold and visible
-            // the whole time, it never fades away to nothing.
-            var breathe = 0.85 + 0.15 * Math.sin(tSec * 0.45);
-            var halfW = (W < 700 ? 30 : 52) * breathe;
-            var fade = reduced ? 0.5 : 1;
-            var i, p;
+            var fade = reduced ? 0.55 : 1;
+            var cx = W * 0.56;              // helix centre
+            var cy = H * 0.44 + Math.sin(tSec * 0.30) * H * 0.012;
+            var len = Math.min(W * 0.78, 980); // helix length along x
+            var rad = W < 700 ? 46 : 74;       // helix radius
+            var turns = 3.1;                   // twists along the length
+            var rot = tSec * 0.55;             // rotation speed
+            var step = W < 700 ? 16 : 13;      // px between base pairs
+            var n = Math.floor(len / step);
+            var i, x, ph, y1, y2, z1, z2;
             ctx.globalCompositeOperation = 'lighter';
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
-            // Soft wide glow under the bundle
-            ctx.beginPath();
-            for (i = 0; i < n; i++) {
-              p = trail[i];
-              if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-            }
-            ctx.strokeStyle = 'rgba(0,255,163,' + (0.055 * fade).toFixed(3) + ')';
-            ctx.lineWidth = halfW * 2.5;
-            ctx.stroke();
-            ctx.strokeStyle = 'rgba(46,230,168,' + (0.07 * fade).toFixed(3) + ')';
-            ctx.lineWidth = halfW * 1.6;
-            ctx.stroke();
-
-            // The bundle: 23 thin parallel strands with perpendicular
-            // offsets, reading as one wide silk ribbon. Width tapers at
-            // the far tail; the head stays full and bright.
-            var STRANDS = 34;
-            for (var s = 0; s < STRANDS; s++) {
-              var tt = (s / (STRANDS - 1)) * 2 - 1; // -1 .. 1 across bundle
-              var at = Math.abs(tt);
-              var col, alpha;
-              if (at < 0.34)      { col = '125,255,206'; alpha = 0.85; }
-              else if (at < 0.72) { col = '46,230,168';  alpha = 0.60; }
-              else                { col = '0,255,163';   alpha = 0.35; }
+            // Faint rungs (base pairs) between the two strands
+            ctx.lineWidth = 1;
+            for (i = 0; i <= n; i++) {
+              x = cx - len / 2 + i * step;
+              ph = rot + (i / n) * turns * Math.PI * 2;
+              y1 = cy + Math.sin(ph) * rad;
+              y2 = cy + Math.sin(ph + Math.PI) * rad;
+              z1 = Math.cos(ph); // -1 back .. 1 front
+              var a = 0.05 + 0.10 * (z1 * 0.5 + 0.5);
+              ctx.strokeStyle = 'rgba(46,230,168,' + (a * fade).toFixed(3) + ')';
               ctx.beginPath();
-              for (i = 0; i < n; i++) {
-                p = trail[i];
-                var prev = trail[Math.max(0, i - 1)];
-                var next = trail[Math.min(n - 1, i + 1)];
-                var tx = next.x - prev.x, ty = next.y - prev.y;
-                var tl = Math.sqrt(tx * tx + ty * ty) || 1;
-                var nx = -ty / tl, ny = tx / tl;
-                var frac = i / (n - 1); // 0 = tail, 1 = head
-                var taper = Math.min(1, frac / 0.30) * (0.55 + 0.45 * Math.min(1, (1 - frac) / 0.06 + 0.4));
-                var wob = Math.sin(i * 0.30 - tSec * 6 + s * 1.93) * 1.3;
-                var off = tt * halfW * taper + wob * (1 - at * 0.5);
-                var x = p.x + nx * off, y = p.y + ny * off;
-                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-              }
-              ctx.strokeStyle = 'rgba(' + col + ',' + (alpha * fade).toFixed(3) + ')';
-              ctx.lineWidth = at < 0.34 ? 1.3 : 1.05;
+              ctx.moveTo(x, y1);
+              ctx.lineTo(x, y2);
               ctx.stroke();
+            }
+
+            // The two strands, drawn as smooth glowing curves with a
+            // soft under-glow, then bright beaded points sized by depth
+            var strand;
+            for (strand = 0; strand < 2; strand++) {
+              var off = strand * Math.PI;
+              // under-glow pass
+              ctx.beginPath();
+              for (i = 0; i <= n; i++) {
+                x = cx - len / 2 + i * step;
+                ph = rot + (i / n) * turns * Math.PI * 2 + off;
+                y1 = cy + Math.sin(ph) * rad;
+                if (i === 0) ctx.moveTo(x, y1); else ctx.lineTo(x, y1);
+              }
+              ctx.strokeStyle = 'rgba(0,255,163,' + (0.10 * fade).toFixed(3) + ')';
+              ctx.lineWidth = 7;
+              ctx.stroke();
+              // core strand pass
+              ctx.beginPath();
+              for (i = 0; i <= n; i++) {
+                x = cx - len / 2 + i * step;
+                ph = rot + (i / n) * turns * Math.PI * 2 + off;
+                y1 = cy + Math.sin(ph) * rad;
+                if (i === 0) ctx.moveTo(x, y1); else ctx.lineTo(x, y1);
+              }
+              ctx.strokeStyle = 'rgba(46,230,168,' + (0.55 * fade).toFixed(3) + ')';
+              ctx.lineWidth = 1.6;
+              ctx.stroke();
+              // beads
+              for (i = 0; i <= n; i++) {
+                x = cx - len / 2 + i * step;
+                ph = rot + (i / n) * turns * Math.PI * 2 + off;
+                y1 = cy + Math.sin(ph) * rad;
+                z1 = Math.cos(ph);
+                var front = z1 * 0.5 + 0.5; // 0 back .. 1 front
+                var r = 1.1 + 2.6 * front;
+                var a2 = 0.25 + 0.75 * front;
+                ctx.fillStyle = 'rgba(125,255,206,' + (a2 * fade).toFixed(3) + ')';
+                ctx.beginPath();
+                ctx.arc(x, y1, r, 0, Math.PI * 2);
+                ctx.fill();
+              }
             }
             ctx.globalCompositeOperation = 'source-over';
           }
@@ -1018,13 +978,7 @@
             var dt = Math.min(0.05, (ts - lastTs) / 1000);
             lastTs = ts;
             tSec += dt;
-            var ptrTarget = (performance.now() - ptrAt < 2500) ? 1 : 0;
-            ptrIn += (ptrTarget - ptrIn) * 0.04;
-            // Advance the head in small sub-steps so the trail spacing
-            // stays even even on slow frames.
-            var steps = Math.max(1, Math.round(dt / (1 / 60)));
-            for (var k = 0; k < steps; k++) pushHead(pathAt(tSec - dt + (k + 1) * (dt / steps)));
-            draw();
+            drawHelix();
             rafId = requestAnimationFrame(loop);
           }
           function start() {
@@ -1037,15 +991,6 @@
             if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
             ctx.clearRect(0, 0, W, H);
           }
-
-          function onPointer(e) {
-            var r = canvas.getBoundingClientRect();
-            ptr.x = e.clientX - r.left;
-            ptr.y = e.clientY - r.top;
-            ptrAt = performance.now();
-          }
-          homePage.addEventListener('pointermove', onPointer, { passive: true });
-          homePage.addEventListener('pointerdown', onPointer, { passive: true });
 
           var fxObserver = new MutationObserver(function () {
             if (homePage.classList.contains('active')) start();
@@ -1067,8 +1012,7 @@
             canvas.style.width = w + 'px';
             canvas.style.height = h + 'px';
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            preroll();
-            if (reduced) draw(); // one static swirl
+            if (reduced) drawHelix(); // one static helix
           }
           var resizeTimer = null;
           window.addEventListener('resize', function () {
